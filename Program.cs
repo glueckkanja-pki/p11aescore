@@ -26,6 +26,9 @@ namespace p11aescore
             Command currentCommand = Enum.Parse<Command>(args[1]);
             string label = args[2];
 
+            if (label.Length > 16)
+                throw new Exception("Labels should have at most 16 characters, because their names are used as unique 16-byte-key identifiers");
+
             switch(currentCommand)
             {
                 case Command.Create:
@@ -49,7 +52,7 @@ namespace p11aescore
             using (IPkcs11Library pkcs11Library = Settings.Factories.Pkcs11LibraryFactory.LoadPkcs11Library(Settings.Factories, libraryPath, Settings.AppType))
             {
                 List<ISlot> slots = pkcs11Library.GetSlotList(SlotsType.WithTokenPresent);
-                ISlot slot = slots.Single(slot => slot.GetTokenInfo().Label == "accelerator");   // nCipher stores its module-protected keys in the accelerator slot
+                ISlot slot = slots.Single(slot => GetLabel(slot) == "accelerator");   // nCipher stores its module-protected keys in the accelerator slot
 
                 // Open RW session
                 using (ISession session = slot.OpenSession(SessionType.ReadOnly))
@@ -113,7 +116,7 @@ namespace p11aescore
             using (IPkcs11Library pkcs11Library = Settings.Factories.Pkcs11LibraryFactory.LoadPkcs11Library(Settings.Factories, libraryPath, Settings.AppType))
             {
                 List<ISlot> slots = pkcs11Library.GetSlotList(SlotsType.WithTokenPresent);
-                ISlot slot = slots.Single(slot => slot.GetTokenInfo().Label == "accelerator");   // nCipher stores its module-protected keys in the accelerator slot
+                ISlot slot = slots.Single(slot => GetLabel(slot) == "accelerator");   // nCipher stores its module-protected keys in the accelerator slot
 
                 // Open RW session
                 using (ISession session = slot.OpenSession(SessionType.ReadWrite))
@@ -121,8 +124,8 @@ namespace p11aescore
                     //// Login as normal user
                     session.Login(CKU.CKU_USER, Settings.NormalUserPin);    // PIN is ignored for nCipher HSMs where tokens are unlocked differently
 
-                        // Prepare attribute template of new key
-                    List < IObjectAttribute > objectAttributes = new List<IObjectAttribute>();
+                    // Prepare attribute template of new key
+                    List<IObjectAttribute> objectAttributes = new List<IObjectAttribute>();
                     objectAttributes.Add(session.Factories.ObjectAttributeFactory.Create(CKA.CKA_CLASS, CKO.CKO_SECRET_KEY));
                     objectAttributes.Add(session.Factories.ObjectAttributeFactory.Create(CKA.CKA_KEY_TYPE, CKK.CKK_AES));
                     objectAttributes.Add(session.Factories.ObjectAttributeFactory.Create(CKA.CKA_ENCRYPT, true));
@@ -142,6 +145,18 @@ namespace p11aescore
 
                     session.Logout();
                 }
+            }
+        }
+
+        private static string GetLabel(ISlot slot)
+        {
+            try
+            {
+                return slot.GetTokenInfo().Label;
+            }
+            catch
+            {
+                return null;
             }
         }
 
